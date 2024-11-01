@@ -43,18 +43,32 @@ void initThermalSystemManager(lm75bd_config_t *config) {
 
 error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
   /* Send an event to the thermal manager queue */
+   xQueueSend(thermalMgrQueueHandle, event, 0); // why u throwing error
 
   return ERR_CODE_SUCCESS;
 }
 
 void osHandlerLM75BD(void) {
   /* Implement this function */
+  float temp;
+  readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp); 
+
+  if(temp > 80) {
+    overTemperatureDetected();
+  } else if(temp < 75) {
+    safeOperatingConditions();
+  }
 }
 
 static void thermalMgr(void *pvParameters) {
   /* Implement this task */
   while (1) {
-    
+    thermal_mgr_event_t data = *(thermal_mgr_event_t *) pvParameters;
+   if(xQueueReceive(thermalMgrQueueHandle, pvParameters, 0) == pdTRUE && data.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) { // ensure about the tick time + how to checl the type ajsdkfk
+      float temp;
+      readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp);
+      addTemperatureTelemetry(temp);
+   }
   }
 }
 

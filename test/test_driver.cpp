@@ -80,7 +80,6 @@ TEST(TestLm75bdDriver, TestReadTempLm75bdPosTempSuccess) {
   customTempBuff[1] = 0x00U;
 
   i2cReceiveFrom_fake.custom_fake = getTemp_custom_fake;
-
   ASSERT_EQ(readTempLM75BD(addr, &temp), ERR_CODE_SUCCESS);
   EXPECT_EQ(temp, 127.0f);
 }
