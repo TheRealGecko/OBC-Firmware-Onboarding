@@ -2,6 +2,7 @@
 #include "errors.h"
 #include "lm75bd.h"
 #include "console.h"
+#include "logging.h"
 
 #include <FreeRTOS.h>
 #include <os_task.h>
@@ -43,32 +44,47 @@ void initThermalSystemManager(lm75bd_config_t *config) {
 
 error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
   /* Send an event to the thermal manager queue */
-   xQueueSend(thermalMgrQueueHandle, event, 0); // why u throwing error
-
-  return ERR_CODE_SUCCESS;
+  if(thermalMgrQueueHandle != NULL && event != NULL) {
+    xQueueSend(thermalMgrQueueHandle, event, 0);
+    return ERR_CODE_SUCCESS;
+  } else {
+    return ERR_CODE_INVALID_ARG; 
+  }
 }
 
 void osHandlerLM75BD(void) {
   /* Implement this function */
-  float temp;
-  readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp); 
-
-  if(temp > 80) {
-    overTemperatureDetected();
-  } else if(temp < 75) {
-    safeOperatingConditions();
-  }
+  thermal_mgr_event_t event;
+  event.type = THERMAL_MGR_EVENT_OS_INTERRUPT;
+  thermalMgrSendEvent(&event);
 }
 
 static void thermalMgr(void *pvParameters) {
   /* Implement this task */
   while (1) {
     thermal_mgr_event_t data = *(thermal_mgr_event_t *) pvParameters;
-   if(xQueueReceive(thermalMgrQueueHandle, pvParameters, 0) == pdTRUE && data.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) { // ensure about the tick time + how to checl the type ajsdkfk
+
+    error_code_t errCodeEvent = xQueueReceive(thermalMgrQueueHandle, pvParameters, portMAX_DELAY);
+
+    if(errCodeEvent == pdTRUE) { // ensure about the tick time + how to checl the type ajsdkfk
       float temp;
-      readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp);
-      addTemperatureTelemetry(temp);
-   }
+      if (data.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
+        error_code_t errCode = readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp); 
+        if(errCode != ERR_CODE_SUCCESS) {
+          LOG_ERROR_CODE(errCode);
+          continue;
+        }
+        addTemperatureTelemetry(temp);
+      } else if(data.type == THERMAL_MGR_EVENT_OS_INTERRUPT) {
+        if(temp > LM75BD_DEFAULT_OT_THRESH) {
+          overTemperatureDetected();
+        } else if(temp < LM75BD_DEFAULT_HYST_THRESH) {
+          safeOperatingConditions();
+        }
+      }
+    } else {
+        LOG_ERROR_CODE(errCodeEvent);
+    }
   }
 }
 
