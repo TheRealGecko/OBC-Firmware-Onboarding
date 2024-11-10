@@ -44,11 +44,16 @@ void initThermalSystemManager(lm75bd_config_t *config) {
 
 error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
   /* Send an event to the thermal manager queue */
-  if(thermalMgrQueueHandle != NULL && event != NULL) {
-    xQueueSend(thermalMgrQueueHandle, event, 0);
-    return ERR_CODE_SUCCESS;
+  if(event == NULL) {
+    return ERR_CODE_INVALID_ARG;
+  } else if(thermalMgrQueueHandle == NULL) {
+    return ERR_CODE_INVALID_STATE;
   } else {
-    return ERR_CODE_INVALID_ARG; 
+    BaseType_t errCode = xQueueSend(thermalMgrQueueHandle, event, 0);
+    if(errCode != pdTRUE) {
+      LOG_ERROR_CODE(errCode);
+    }
+    return ERR_CODE_SUCCESS;
   }
 }
 
@@ -62,11 +67,13 @@ void osHandlerLM75BD(void) {
 static void thermalMgr(void *pvParameters) {
   /* Implement this task */
   while (1) {
-    thermal_mgr_event_t data = *(thermal_mgr_event_t *) pvParameters;
+    thermal_mgr_event_t data = {0};
 
-    error_code_t errCodeEvent = xQueueReceive(thermalMgrQueueHandle, pvParameters, portMAX_DELAY);
+    BaseType_t errCodeEvent = xQueueReceive(thermalMgrQueueHandle, pvParameters, portMAX_DELAY);
 
-    if(errCodeEvent == pdTRUE) { // ensure about the tick time + how to checl the type ajsdkfk
+    data = *(thermal_mgr_event_t *) pvParameters;
+
+    if(errCodeEvent == pdTRUE) {
       float temp;
       if (data.type == THERMAL_MGR_EVENT_MEASURE_TEMP_CMD) {
         error_code_t errCode = readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp); 
@@ -76,6 +83,12 @@ static void thermalMgr(void *pvParameters) {
         }
         addTemperatureTelemetry(temp);
       } else if(data.type == THERMAL_MGR_EVENT_OS_INTERRUPT) {
+        error_code_t errCode = readTempLM75BD(LM75BD_OBC_I2C_ADDR, &temp); 
+        if(errCode != ERR_CODE_SUCCESS) {
+          LOG_ERROR_CODE(errCode);
+          continue;
+        }
+
         if(temp > LM75BD_DEFAULT_OT_THRESH) {
           overTemperatureDetected();
         } else if(temp < LM75BD_DEFAULT_HYST_THRESH) {
