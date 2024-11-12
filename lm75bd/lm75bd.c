@@ -31,8 +31,8 @@ error_code_t readTempLM75BD(uint8_t devAddr, float *temp) {
   
   if(temp == NULL) return ERR_CODE_INVALID_ARG;
 
-  uint8_t sendBuf[1] = {0x0U};
-  uint8_t buffer[2] = {0U, 0U};
+  uint8_t sendBuf[1] = {0};
+  uint8_t buffer[2] = {0};
   RETURN_IF_ERROR_CODE(i2cSendTo (devAddr, sendBuf, sizeof(sendBuf)));
   RETURN_IF_ERROR_CODE(i2cReceiveFrom (devAddr, buffer, sizeof(buffer)));
 

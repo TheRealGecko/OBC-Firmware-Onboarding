@@ -51,7 +51,7 @@ error_code_t thermalMgrSendEvent(thermal_mgr_event_t *event) {
   } else {
     BaseType_t errCode = xQueueSend(thermalMgrQueueHandle, event, 0);
     if(errCode != pdTRUE) {
-      LOG_ERROR_CODE(errCode);
+      return ERR_CODE_QUEUE_FULL;
     }
     return ERR_CODE_SUCCESS;
   }
@@ -69,9 +69,7 @@ static void thermalMgr(void *pvParameters) {
   while (1) {
     thermal_mgr_event_t data = {0};
 
-    BaseType_t errCodeEvent = xQueueReceive(thermalMgrQueueHandle, pvParameters, portMAX_DELAY);
-
-    data = *(thermal_mgr_event_t *) pvParameters;
+    BaseType_t errCodeEvent = xQueueReceive(thermalMgrQueueHandle, &data, portMAX_DELAY);
 
     if(errCodeEvent == pdTRUE) {
       float temp;
@@ -96,7 +94,7 @@ static void thermalMgr(void *pvParameters) {
         }
       }
     } else {
-        LOG_ERROR_CODE(errCodeEvent);
+        LOG_ERROR_CODE(ERR_CODE_INVALID_QUEUE_MSG);
     }
   }
 }
